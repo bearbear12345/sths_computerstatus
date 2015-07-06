@@ -11,8 +11,8 @@
 # TODO Make client do stuff? (Remote shutdown?)
 # TODO Make it a service?
 
-lanIpPrefix = "192.168"  # str - IP prefix of LAN device (To match LAN IP) - Default: 10.29.
-serverIp = "110.20.163.189"  # str - Server IP - Default: 10.29.98.72
+lanIpPrefix = "10.29."  # str - IP prefix of LAN device (To match LAN IP) - Default: 10.29.
+serverIp = "10.29.98.72"  # str - Server IP - Default: 10.29.98.72
 serverPort = 65533  # int - Server Port - Default: 65533
 showOutput = True  # bool - Show output - Default: False
 showDebug = True  # bool - Show debug - Default: False
