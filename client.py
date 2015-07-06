@@ -15,7 +15,7 @@ lanIpPrefix = "10.29."  # str - IP prefix of LAN device (To match LAN IP) - Defa
 serverIp = "10.29.98.72"  # str - Server IP - Default: 10.29.98.72
 serverPort = 65533  # int - Server Port - Default: 65533
 showOutput = True  # bool - Show output - Default: False
-showDebug = True  # bool - Show debug - Default: False
+showDebug = False  # bool - Show debug - Default: False
 
 import base64
 import codecs
@@ -34,6 +34,7 @@ def dprint(*args):
     :param args: debug message
     :return: void
     """
+
     if showDebug:
         mprint("".join(args))
 
@@ -45,6 +46,7 @@ def mprint(*args):
     :param args: message
     :return: void
     """
+
     if showOutput:
         print("".join(args))
 
@@ -64,27 +66,41 @@ def generatemessage(status):
     :return: STATUS:::data::data::data::data....
     """
 
+    dprint("Collecting system information:...")
+
     def messagecompile(data):
         """
         Combines STATUS with relevant client data
         :param data: client data
         :return: STATUS:::data::data::data::data....
         """
-        return status + ":::" + "::".join(data)
+        dprint("Combining data...")
+        result = status + ":::" + "::".join(data)
+        dprint("    " + result)
+        return result
 
     def getclienthostname():
         """
         Get client's hostname
         :return: HOSTNAME
         """
-        return socket.gethostname()
 
-    def getclientip_all():
+        result = socket.gethostname()
+        dprint("    Hostname is " + result)
+        return result
+
+    def getclientip_all(debugPrint=True):
         """
-        Get all IPv4 associated witht he client's system
+        Get all IPv4 associated with the client's system
+
+        :param debugPrint: show debug text
         :return: ['IP', 'IP', ...]
         """
-        return [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]]
+
+        result = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]]
+        if debugPrint:
+            dprint("    All IPv4s: " + ", ".join(result))
+        return result
 
     def getclientip_lan():
         """
@@ -93,10 +109,39 @@ def generatemessage(status):
 
         :return: IP || {unknown}
         """
+
+        dprint("    Searching for IP matching '%s' ..." % lanIpPrefix)
         try:
-            return [ip for ip in getclientip_all() if ip.startswith(lanIpPrefix)][-1]
+            result = [ip for ip in getclientip_all(False) if ip.startswith(lanIpPrefix)][-1]
+            dprint("        Found %s" % result)
+            return result
         except IndexError:
-            mprint("IP beginning with '%s' could not be found!\n" % lanIpPrefix)
+            dprint("        Not found")
+            return "{unknown}"
+
+    def getclientusername():
+        """
+        Get client's username
+
+        :return: USERNAME
+        """
+
+        result = getpass.getuser()
+        dprint("    Client username is: " + result)
+        return result
+
+    def getclientdomain():
+        """
+        Get client's user domain
+
+        :return: DOMAIN
+        """
+
+        try:
+            result = os.environ.get("USERDOMAIN")
+            dprint("    Client user domain is: " + result)
+            return result
+        except:
             return "{unknown}"
 
     def getclientsystem():
@@ -105,31 +150,26 @@ def generatemessage(status):
 
         :return: OS RELEASE (VERSION)
         """
-        return "%s %s (%s)" % (platform.system(), platform.release(), platform.version())
 
-    def getclientusername():
-        """
-        Get client's username
+        result = "%s %s (%s)" % (platform.system(), platform.release(), platform.version())
+        dprint("    Client system information: " + result)
+        return result
 
-        :return: USERNAME
-        """
-        return getpass.getuser()
-
-    def getclientdomain():
-        """
-        Get client's user domain
-
-        :return: DOMAIN
-        """
-        return os.environ.get("USERDOMAIN") if os.environ.get("USERDOMAIN") else "{unknown}"
+    # Do it once
+    clienthostname = getclienthostname()
+    clientip_lan = getclientip_lan()
+    clientip_all = getclientip_all()
+    clientusername = getclientusername()
+    clientdomain = getclientdomain()
+    clientsystem = getclientsystem()
 
     return messagecompile(
-        {'LOGON': [getclientusername(), getclientdomain(), getclienthostname()],
-         'LOGOFF': [getclientusername(), getclientdomain(), getclienthostname()],
-         'POWERON': [getclientip_lan(), getclienthostname()],
-         'POWEROFF': [getclienthostname()],
-         'POLL': [getclienthostname(), getclientip_lan(), ", ".join(getclientip_all()),
-                  getclientusername(), getclientdomain(), getclientsystem()]
+        {'LOGON': [clientusername, clientdomain, clienthostname],
+         'LOGOFF': [clientusername, clientdomain, clienthostname],
+         'POWERON': [clientip_lan, clienthostname],
+         'POWEROFF': [clienthostname],
+         'POLL': [clienthostname, clientip_lan, ", ".join(clientip_all),
+                  clientusername, clientdomain, clientsystem]
          }.get(status))  # Provide data related to STATUS
 
 
@@ -142,6 +182,7 @@ class Comms(object):
             :param databytes: bytes to receive from socket connection
             :return: socket data
             """
+
             rdata = conn.recv(databytes)
             key = "aw9292929296983244"
             dec = []
@@ -159,6 +200,7 @@ class Comms(object):
             :param data: input string
             :return: void
             """
+
             key = "aw9292929296983244"
             enc = []
             for i in range(len(data)):
@@ -173,6 +215,8 @@ class Comms(object):
 
             :return:
             """
+
+            mprint("Connecting to %s:%s" % (serverIp, serverPort))
             conn.connect((serverIp, serverPort))
 
         def transmit(message):
@@ -182,9 +226,15 @@ class Comms(object):
             :param message: formatted string
             :return: server response
             """
+
             global conn
             conn = socket.socket()
-            self.connect()
+            try:
+                self.connect()
+            except socket.error:
+                mprint("Could not connect to server!\nAborting...")
+                sys.exit(1)
+            mprint("Connected to server!")
             self.send(message)
             result = self.recv(1024)
             conn.close()
@@ -201,8 +251,9 @@ status = "POWEROFF"  # LOGON, LOGOFF, POWERON, POWEROFF, POLL ---- Force status 
 # noinspection PyUnresolvedReferences
 def main():
     comms = Comms()
+    data = generatemessage("POLL")
     dprint("[>] Sending poll to " + serverIp)
-    comms.transmit(generatemessage("POLL"))  # Send POLL to server
+    comms.transmit(data)  # Send POLL to server
 
     if os.name == 'nt':  # Windows only
         dprint("[INFO] OS is Windows")
