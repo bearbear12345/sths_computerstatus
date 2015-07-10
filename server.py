@@ -1,18 +1,27 @@
+#!/usr/bin/env python
+# coding=utf-8
+
+# TODO - Layout
+# TODO - Heartbeat maintenance
+
 import socket
 
-showDebug = True  # bool - Show output - Default: False
+showDebug = False  # bool - Show output - Default: False
 showMessages = True
 
 
 def dprint(*args):
-    if showDebug: mprint("".join(args))
+    if showDebug:
+        mprint("".join(args))
 
 
 def mprint(*args):
-    if showMessages: print("".join(args))
+    if showMessages:
+        print("".join(args))
 
 # fake encryption
-import base64, codecs
+import base64
+import codecs
 
 
 def fakeencryption_decode(enc):
@@ -26,6 +35,7 @@ def fakeencryption_decode(enc):
     return "".join(dec)
 
 
+# noinspection PyShadowingNames
 def comms_send(data):
     key = "aw9292929296983244"
     enc = []
@@ -45,40 +55,51 @@ while True:
     print("IP %s connected on port %s!" % (addr[0], addr[1]))
     while True:
         data = conn.recv(1024)
-        if not data: break
+        if not data:
+            break
         dprint("[<] Received base64 encrypted data: " + data)
         dprint("    Decoded data: " + fakeencryption_decode(data))
         clientstatus, _, clientdetails = fakeencryption_decode(data).partition(":::")  # Extracts client status
 
+        # [clienthostname, clientip_lan, clientip_all, clientusername, clientdomain, clientsystem]
+
+        # noinspection PyShadowingNames
         def parse_logon():
             clientusername, clientdomain, clienthostname = clientdetails.split("::")
             return [clienthostname, '', '', clientusername, clientdomain, '']
 
         def parse_logoff():
+            # noinspection PyShadowingNames
             clientusername, clientdomain, clienthostname = clientdetails.split("::")
             return [clienthostname, '', '', clientusername, clientdomain, '']
 
         def parse_poweron():
+            # noinspection PyShadowingNames
             clientip_lan, clienthostname = clientdetails.split("::")
             return [clienthostname, clientip_lan, '', '', '', '']
 
-        def parse_poweroff():
+        def parse_hostnameonly():
+            # noinspection PyShadowingNames
             clienthostname = clientdetails  # At this point, clientdetails only contains the hostname
             return [clienthostname, '', '', '', '', '']
 
-        def parse_poll():
-            return clientdetails.split("::")
+        def parse_info():
+            # noinspection PyShadowingNames
+            clienthostname, clientip_lan, clientip_all, clientsystem = clientdetails.split("::")
+            return [clienthostname, clientip_lan, clientip_all, '', '', clientsystem]
 
         clienthostname, clientip_lan, clientip_all, clientusername, clientdomain, clientsystem = {
             'LOGON': parse_logon,
             'LOGOFF': parse_logoff,
             'POWERON': parse_poweron,
-            'POWEROFF': parse_poweroff,
-            'POLL': parse_poll,
+            'POWEROFF': parse_hostnameonly,
+            'SVCSTOP': parse_hostnameonly,
+            'POLL': parse_hostnameonly,
+            'INFO': parse_info,
         }.get(clientstatus)()
         try:
             clientaccount = (clientdomain + "\\" + clientusername) if clientdomain != "{unknown}" else clientusername
-        except:
+        except NameError:
             continue
         dprint("[<] Received %s from %s" % (clientstatus, clienthostname))
 
@@ -94,12 +115,17 @@ while True:
         def handle_poweroff():
             mprint("[INFO] Node %s received shutdown signal" % clienthostname)
 
+        def handle_svcstop():
+            mprint("[WARN] Client received service stop signal at %s" % clienthostname)
+
         def handle_poll():
-            mprint(
-                "[INFO] Information received from %s:\n         Hostname: %s\n         Local IP: %s\n         All IPv4s: %s\n         Username: %s\n         Domain: %s\n         Account: %s\n         System: %s" % (
-                    clienthostname, clienthostname, clientip_lan, clientip_all, clientusername, clientdomain,
-                    clientaccount,
-                    clientsystem))
+            dprint("[INFO] Received heartbeat from %s" % clienthostname)
+
+        def handle_info():
+            # noinspection PyPep8
+            dprint(
+                "[INFO] Received info heartbeat from %s:\n       Hostname: %s\n       Local IP: %s\n       All IPv4s: %s\n       System: %s" % (
+                    clienthostname, clienthostname, clientip_lan, clientip_all, clientsystem))
 
         # handle
         {
@@ -107,14 +133,15 @@ while True:
             'LOGOFF': handle_logoff,
             'POWERON': handle_poweron,
             'POWEROFF': handle_poweroff,
+            'SVCSTOP': handle_svcstop,
             'POLL': handle_poll,
+            'INFO': handle_info,
         }.get(clientstatus)()
         # color state
         # Available - GREEN
         # Used - RED
         # Off - Grey
         # Restart - Yellow?
-
 
         # conn.sendall(b"Acknowledged!")
         dprint("[>] Acknowledging message")

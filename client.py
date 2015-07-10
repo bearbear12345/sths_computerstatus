@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 """ STHS Computer Status System
-      Version 1.0
+      Version 1.1
       By Andrew Wong (featherbear@navhaxs.au.eu.org)
       Copyright 2015
 
@@ -9,50 +9,40 @@
 """
 
 # TODO Make client do stuff? (Remote shutdown?)
-# TODO Make it a service?
+# TODO EXE information (icon, etc...)
 
 lanIpPrefix = "10.29."  # str - IP prefix of LAN device (To match LAN IP) - Default: 10.29.
 serverIp = "10.29.98.72"  # str - Server IP - Default: 10.29.98.72
 serverPort = 65533  # int - Server Port - Default: 65533
-showOutput = True  # bool - Show output - Default: False
-showDebug = False  # bool - Show debug - Default: False
 
+from datetime import datetime
 import base64
 import codecs
-import os
 import sys
-import time
 import platform
 import socket
-import getpass
+import win32event
+import win32security
+import win32service
+import servicemanager
+
+import win32serviceutil
 
 
-def dprint(*args):
+def mlog(*args):
     """
-    Prints debug messages if showDebug is True
-
-    :param args: debug message
-    :return: void
-    """
-
-    if showDebug:
-        mprint("".join(args))
-
-
-def mprint(*args):
-    """
-    Prints output messages if showOutput is True
+    Logs output messages
 
     :param args: message
     :return: void
     """
 
-    if showOutput:
-        print("".join(args))
+    with open('C:/Windows/STHScompstat_2327.dat', 'a') as f:
+        f.write("%s | %s\n" % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "".join(args)))
 
 
 # noinspection PyShadowingNames
-def generatemessage(status):
+def generatemessage(status, clientusername=None, clientdomain=None):
     """
     Creates string to be sent to the socket server containing event information
 
@@ -60,13 +50,15 @@ def generatemessage(status):
     LOGOFF - status:::user::domain::hostname
     POWERON - status:::ip::hostname
     POWEROFF - status:::hostname
-    POLL - status:::hostname::ip::ipall::user::domain::system
+    SVCSTOP - status:::hostname
+    POLL - status:::hostname
+    INFO - status:::hostname::ip::ipall::system
 
-    :param status: LOGON, LOGOFF, POWERON, POWEROFF, POLL
+    :param status: LOGON, LOGOFF, POWERON, POWEROFF, SVCSTOP, POLL, INFO
     :return: STATUS:::data::data::data::data....
     """
 
-    dprint("Collecting system information:...")
+    mlog("Collecting system information:...")
 
     def messagecompile(data):
         """
@@ -74,9 +66,9 @@ def generatemessage(status):
         :param data: client data
         :return: STATUS:::data::data::data::data....
         """
-        dprint("Combining data...")
+        mlog("Combining data...")
         result = status + ":::" + "::".join(data)
-        dprint("    " + result)
+        mlog("    " + result)
         return result
 
     def getclienthostname():
@@ -84,11 +76,11 @@ def generatemessage(status):
         Get client's hostname
         :return: HOSTNAME
         """
-
         result = socket.gethostname()
-        dprint("    Hostname is " + result)
+        mlog("    Hostname is " + result)
         return result
 
+    # noinspection PyPep8Naming
     def getclientip_all(debugPrint=True):
         """
         Get all IPv4 associated with the client's system
@@ -96,10 +88,9 @@ def generatemessage(status):
         :param debugPrint: show debug text
         :return: ['IP', 'IP', ...]
         """
-
         result = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]]
         if debugPrint:
-            dprint("    All IPv4s: " + ", ".join(result))
+            mlog("    All IPv4s: " + ", ".join(result))
         return result
 
     def getclientip_lan():
@@ -109,39 +100,13 @@ def generatemessage(status):
 
         :return: IP || {unknown}
         """
-
-        dprint("    Searching for IP matching '%s' ..." % lanIpPrefix)
+        mlog("    Searching for IP matching '%s' ..." % lanIpPrefix)
         try:
             result = [ip for ip in getclientip_all(False) if ip.startswith(lanIpPrefix)][-1]
-            dprint("        Found %s" % result)
+            mlog("        Found %s" % result)
             return result
         except IndexError:
-            dprint("        Not found")
-            return "{unknown}"
-
-    def getclientusername():
-        """
-        Get client's username
-
-        :return: USERNAME
-        """
-
-        result = getpass.getuser()
-        dprint("    Client username is: " + result)
-        return result
-
-    def getclientdomain():
-        """
-        Get client's user domain
-
-        :return: DOMAIN
-        """
-
-        try:
-            result = os.environ.get("USERDOMAIN")
-            dprint("    Client user domain is: " + result)
-            return result
-        except:
+            mlog("        Not found")
             return "{unknown}"
 
     def getclientsystem():
@@ -152,15 +117,13 @@ def generatemessage(status):
         """
 
         result = "%s %s (%s)" % (platform.system(), platform.release(), platform.version())
-        dprint("    Client system information: " + result)
+        mlog("    Client system information: " + result)
         return result
 
-    # Do it once
+    # Execute functions and store into variables
     clienthostname = getclienthostname()
     clientip_lan = getclientip_lan()
     clientip_all = getclientip_all()
-    clientusername = getclientusername()
-    clientdomain = getclientdomain()
     clientsystem = getclientsystem()
 
     return messagecompile(
@@ -168,8 +131,9 @@ def generatemessage(status):
          'LOGOFF': [clientusername, clientdomain, clienthostname],
          'POWERON': [clientip_lan, clienthostname],
          'POWEROFF': [clienthostname],
-         'POLL': [clienthostname, clientip_lan, ", ".join(clientip_all),
-                  clientusername, clientdomain, clientsystem]
+         "SVCSTOP": [clienthostname],
+         "POLL": [clienthostname],
+         'INFO': [clienthostname, clientip_lan, ", ".join(clientip_all), clientsystem]
          }.get(status))  # Provide data related to STATUS
 
 
@@ -216,7 +180,7 @@ class Comms(object):
             :return:
             """
 
-            mprint("Connecting to %s:%s" % (serverIp, serverPort))
+            mlog("Connecting to %s:%s" % (serverIp, serverPort))
             conn.connect((serverIp, serverPort))
 
         def transmit(message):
@@ -229,12 +193,14 @@ class Comms(object):
 
             global conn
             conn = socket.socket()
-            try:
-                self.connect()
-            except socket.error:
-                mprint("Could not connect to server!\nAborting...")
-                sys.exit(1)
-            mprint("Connected to server!")
+            cont = True
+            while cont:
+                try:
+                    self.connect()
+                    cont = False
+                except socket.error:
+                    mlog("Could not connect to server!\nRetrying...")
+            mlog("Connected to server!")
             self.send(message)
             result = self.recv(1024)
             conn.close()
@@ -246,61 +212,117 @@ class Comms(object):
         self.transmit = transmit
 
 
-status = "POWEROFF"  # LOGON, LOGOFF, POWERON, POWEROFF, POLL ---- Force status for now
+class STHScompstatService(win32serviceutil.ServiceFramework):
+    _svc_name_ = 'STHScompstat_2327'  # Service 'ID'
+    _svc_display_name_ = 'STHS Computer Status Client'  # Service Name
+    _svc_description_ = 'Project on GitHub - bearbear12345/sths_computerstatus'  # Service Description
+    _exe_args_ = "-service"  # Service arguments
 
-# noinspection PyUnresolvedReferences
-def main():
-    comms = Comms()
-    data = generatemessage("POLL")
-    dprint("[>] Sending poll to " + serverIp)
-    comms.transmit(data)  # Send POLL to server
+    def __init__(self, args):
+        win32serviceutil.ServiceFramework.__init__(self, args)
+        self.ReportServiceStatus(win32service.SERVICE_START_PENDING, waitHint=30000)
+        self.stop_event = win32event.CreateEvent(None, 0, 0, None)
 
-    if os.name == 'nt':  # Windows only
-        dprint("[INFO] OS is Windows")
-        try:
-            # noinspection PyShadowingNames,PyUnusedLocal
-            def exithandler(hwnd, msg, wparam, lparam):
-                # Handle logoff/shutdown events
-                if lparam == -2147483648:
-                    mprint("[INFO] Caught logoff signal!")
-                    comms.transmit(generatemessage("LOGOFF"))
-                else:
-                    mprint("[INFO] Caught power off signal!")
-                    comms.transmit(generatemessage("POWEROFF"))
+    def GetAcceptedControls(self):
+        """
+        Honestly I have no idea what this is for, just copied it from a snippet.
+        """
+        rc = win32serviceutil.ServiceFramework.GetAcceptedControls(self)
+        rc |= win32service.SERVICE_ACCEPT_SESSIONCHANGE
+        return rc
 
-            import win32con
-            import win32api
-            import win32gui
+    def SvcOtherEx(self, control, event_type, data):
+        """
+        Handle logon and logoff events
+        """
+        if control == win32service.SERVICE_CONTROL_SESSIONCHANGE:
+            sess_id = data[0]
+            _UserInfo_ = self.GetUserInfo(sess_id)
+            _UserName_ = _UserInfo_["UserName"]
+            _LogonDomain_ = _UserInfo_["LogonDomain"]
+            if event_type == 5:
+                mlog("[INFO] %s\\%s logged on!" % (_UserName_, _LogonDomain_))
+                data = generatemessage("LOGON", _UserName_, _LogonDomain_)
+                mlog("[>] Sending logon event to server")
+            elif event_type == 6:
+                mlog("[INFO] %s\\%s logged off!" % (_UserName_, _LogonDomain_))
+                data = generatemessage("LOGOFF", _UserName_, _LogonDomain_)
+                mlog("[>] Sending logoff event to server")
+            comms.transmit(data)
 
-            hinst = win32api.GetModuleHandle(None)
-            wndclass = win32gui.WNDCLASS()
-            wndclass.hInstance = hinst
-            wndclass.lpszClassName = "blankWindowClass"
-            messagemappings = {
-                win32con.WM_ENDSESSION: exithandler,
-            }
+    # noinspection PyMethodMayBeStatic,PyPep8Naming
+    def GetUserInfo(self, sess_id):
+        sessions = win32security.LsaEnumerateLogonSessions()[:-5]
+        for sn in sessions:
+            sn_info = win32security.LsaGetLogonSessionData(sn)
+            if sn_info['Session'] == sess_id:
+                return sn_info
 
-            wndclass.lpfnWndProc = messagemappings
-            hwnd = None
-            try:
-                windowclass = win32gui.RegisterClass(wndclass)
-                hwnd = win32gui.CreateWindowEx(win32con.WS_EX_LEFT, windowclass, "blankWindow", 0, 0, 0,
-                                               win32con.CW_USEDEFAULT, win32con.CW_USEDEFAULT, 0, 0, hinst, None)
-            except Exception, e:
-                dprint("[PYWIN32] Exception: %s" % str(e))
-
-            if hwnd is None:
-                dprint("[PYWIN32] hwnd is none!")
-            else:
-                dprint("[PYWIN32] hwnd: " + str(hwnd))
-        except ImportError:
-            mprint("[PYWIN32] pywin32 not found! Please install")
-            sys.exit()
+    # noinspection PyPep8Naming
+    def SvcDoRun(self):
+        """
+        Sends heartbeat to server. Every 10th subsequent heartbeat contains client information. Rest all just polls
+        """
+        data = generatemessage("INFO")
+        mlog("[>] Sending heartbeat to server")
+        comms.transmit(data)
+        c = 1
         while True:
-            win32gui.PumpWaitingMessages()
-            time.sleep(1)
+            rc = win32event.WaitForSingleObject(self.stop_event, 60000)  # 60000 - 60s * 1000ms
+            if rc == win32event.WAIT_OBJECT_0:
+                mlog("[INFO] Service successfully stopped for shutdown!")
+                break
+            else:
+                if c == 10:
+                    data = generatemessage("INFO")
+                    c = 0
+                else:
+                    data = generatemessage("POLL")
+                mlog("[>] Sending heartbeat to server")
+                comms.transmit(data)
+                c += 1
+        self.ReportServiceStatus(win32service.SERVICE_STOPPED)
 
+    # noinspection PyPep8Naming
+    def SvcStop(self):
+        """
+        Occurs when the service is stopped - That's not good
+        """
+        mlog("[WARN] Caught service stop event!")
+        self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+        data = generatemessage("SVCSTOP")
+        mlog("[>] Sending service stop event to server")
+        comms.transmit(data)
+        win32event.SetEvent(self.stop_event)
 
+    # noinspection PyPep8Naming
+    def SvcShutdown(self):
+        mlog("[INFO] Caught power off signal!")
+        self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+        data = generatemessage("POWEROFF")
+        mlog("[>] Sending shutdown event to server")
+        comms.transmit(data)
+        win32event.SetEvent(self.stop_event)
+
+# Program Start
 if __name__ == '__main__':
-    # Program actually begins here :)
-    main()
+    comms = Comms()
+    if len(sys.argv) > 1:
+        # http://stackoverflow.com/a/25934756/1337520
+        if len(sys.argv) == 2 and sys.argv[1] == "-service":
+            del sys.argv[1]
+            # Thank you StackOverflow
+            # -- Allows application to be run as standalone (without Python installed)
+            servicemanager.Initialize()
+            servicemanager.PrepareToHostSingle(STHScompstatService)
+            servicemanager.StartServiceCtrlDispatcher()
+        elif sys.argv[1] == "service":
+            del sys.argv[1]
+            if "install" in sys.argv[1:] and "--startup" not in sys.argv[1:]:
+                # Auto service startup
+                sys.argv.insert(1, "--startup")
+                sys.argv.insert(2, "auto")
+            win32serviceutil.HandleCommandLine(STHScompstatService)
+    else:
+        print("Application is a service!\nRun with 'service' argument to continue...")
+        sys.exit(1)
