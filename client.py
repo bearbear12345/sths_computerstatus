@@ -12,8 +12,9 @@
 # TODO EXE information (icon, etc...)
 
 lanIpPrefix = "10.29."  # str - IP prefix of LAN device (To match LAN IP) - Default: 10.29.
-serverIp = "10.29.98.72"  # str - Server IP - Default: 10.29.98.72
+serverIp = "10.29.98.29"  # str - Server IP - Default: 10.29.98.29
 serverPort = 65533  # int - Server Port - Default: 65533
+debugLog = False  # bool - Log debug messages? - Default: False
 
 from datetime import datetime
 import base64
@@ -29,6 +30,16 @@ import servicemanager
 import win32serviceutil
 
 
+def dlog(*args):
+    """
+    Logs debug messages
+
+    :param args: message
+    :return: void
+    """
+    if debugLog:
+        mlog(" ".join(args))
+
 def mlog(*args):
     """
     Logs output messages
@@ -38,7 +49,7 @@ def mlog(*args):
     """
 
     with open('C:/Windows/STHScompstat_2327.dat', 'a') as f:
-        f.write("%s | %s\n" % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "".join(args)))
+        f.write("%s | %s\n" % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), " ".join(args)))
 
 
 # noinspection PyShadowingNames
@@ -58,7 +69,7 @@ def generatemessage(status, clientusername=None, clientdomain=None):
     :return: STATUS:::data::data::data::data....
     """
 
-    mlog("Collecting system information:...")
+    dlog("Collecting system information:...")
 
     def messagecompile(data):
         """
@@ -66,9 +77,9 @@ def generatemessage(status, clientusername=None, clientdomain=None):
         :param data: client data
         :return: STATUS:::data::data::data::data....
         """
-        mlog("Combining data...")
+        dlog("Combining data...")
         result = status + ":::" + "::".join(data)
-        mlog("    " + result)
+        dlog("    " + result)
         return result
 
     def getclienthostname():
@@ -77,7 +88,7 @@ def generatemessage(status, clientusername=None, clientdomain=None):
         :return: HOSTNAME
         """
         result = socket.gethostname()
-        mlog("    Hostname is " + result)
+        dlog("    Hostname is " + result)
         return result
 
     # noinspection PyPep8Naming
@@ -90,7 +101,7 @@ def generatemessage(status, clientusername=None, clientdomain=None):
         """
         result = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]]
         if debugPrint:
-            mlog("    All IPv4s: " + ", ".join(result))
+            dlog("    All IPv4s: " + ", ".join(result))
         return result
 
     def getclientip_lan():
@@ -100,13 +111,13 @@ def generatemessage(status, clientusername=None, clientdomain=None):
 
         :return: IP || {unknown}
         """
-        mlog("    Searching for IP matching '%s' ..." % lanIpPrefix)
+        dlog("    Searching for IP matching '%s' ..." % lanIpPrefix)
         try:
             result = [ip for ip in getclientip_all(False) if ip.startswith(lanIpPrefix)][-1]
-            mlog("        Found %s" % result)
+            dlog("        Found %s" % result)
             return result
         except IndexError:
-            mlog("        Not found")
+            dlog("        Not found")
             return "{unknown}"
 
     def getclientsystem():
@@ -117,7 +128,7 @@ def generatemessage(status, clientusername=None, clientdomain=None):
         """
 
         result = "%s %s (%s)" % (platform.system(), platform.release(), platform.version())
-        mlog("    Client system information: " + result)
+        dlog("    Client system information: " + result)
         return result
 
     # Execute functions and store into variables
@@ -180,10 +191,10 @@ class Comms(object):
             :return:
             """
 
-            mlog("Connecting to %s:%s" % (serverIp, serverPort))
+            dlog("Connecting to %s:%s" % (serverIp, serverPort))
             conn.connect((serverIp, serverPort))
 
-        def transmit(message):
+        def transmit(message, necessaryretry=False):
             """
             Send and receive strings
 
@@ -196,16 +207,21 @@ class Comms(object):
             cont = True
             while cont:
                 try:
+                    if not necessaryretry:
+                        cont = False
+                    else:
+                        cont = True
                     self.connect()
                     cont = False
+                    dlog("Connected to server!")
+                    self.send(message)
+                    result = self.recv(1024)
+                    conn.close()
+                    return result
                 except socket.error:
-                    mlog("Could not connect to server!\nRetrying...")
-            mlog("Connected to server!")
-            self.send(message)
-            result = self.recv(1024)
-            conn.close()
-            return result
-
+                    dlog("Could not connect to server! Retrying...")
+            dlog("Gave up connection...")
+            return "gaveup"
         self.recv = recv
         self.send = send
         self.connect = connect
@@ -243,12 +259,12 @@ class STHScompstatService(win32serviceutil.ServiceFramework):
             if event_type == 5:
                 mlog("[INFO] %s\\%s logged on!" % (_UserName_, _LogonDomain_))
                 data = generatemessage("LOGON", _UserName_, _LogonDomain_)
-                mlog("[>] Sending logon event to server")
+                dlog("[>] Sending logon event to server")
             elif event_type == 6:
                 mlog("[INFO] %s\\%s logged off!" % (_UserName_, _LogonDomain_))
                 data = generatemessage("LOGOFF", _UserName_, _LogonDomain_)
-                mlog("[>] Sending logoff event to server")
-            comms.transmit(data)
+                dlog("[>] Sending logoff event to server")
+            comms.transmit(data, True)
 
     # noinspection PyMethodMayBeStatic,PyPep8Naming
     def GetUserInfo(self, sess_id):
@@ -263,14 +279,16 @@ class STHScompstatService(win32serviceutil.ServiceFramework):
         """
         Sends heartbeat to server. Every 10th subsequent heartbeat contains client information. Rest all just polls
         """
+        mlog("Service started!")
+        comms.transmit(generatemessage("POWERON"))
         data = generatemessage("INFO")
-        mlog("[>] Sending heartbeat to server")
+        dlog("[>] Sending heartbeat to server")
         comms.transmit(data)
         c = 1
         while True:
             rc = win32event.WaitForSingleObject(self.stop_event, 60000)  # 60000 - 60s * 1000ms
             if rc == win32event.WAIT_OBJECT_0:
-                mlog("[INFO] Service successfully stopped for shutdown!")
+                dlog("[INFO] Service successfully stopped for shutdown!")
                 break
             else:
                 if c == 10:
@@ -278,8 +296,8 @@ class STHScompstatService(win32serviceutil.ServiceFramework):
                     c = 0
                 else:
                     data = generatemessage("POLL")
-                mlog("[>] Sending heartbeat to server")
-                comms.transmit(data)
+                dlog("[>] Sending heartbeat to server")
+                comms.transmit(data, True)
                 c += 1
         self.ReportServiceStatus(win32service.SERVICE_STOPPED)
 
@@ -291,16 +309,17 @@ class STHScompstatService(win32serviceutil.ServiceFramework):
         mlog("[WARN] Caught service stop event!")
         self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
         data = generatemessage("SVCSTOP")
-        mlog("[>] Sending service stop event to server")
+        dlog("[>] Sending service stop event to server")
         comms.transmit(data)
         win32event.SetEvent(self.stop_event)
+        mlog("Service stopped!")
 
     # noinspection PyPep8Naming
     def SvcShutdown(self):
         mlog("[INFO] Caught power off signal!")
         self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
         data = generatemessage("POWEROFF")
-        mlog("[>] Sending shutdown event to server")
+        dlog("[>] Sending shutdown event to server")
         comms.transmit(data)
         win32event.SetEvent(self.stop_event)
 
