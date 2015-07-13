@@ -329,7 +329,7 @@ if __name__ == "__main__":
             }.get(clientstatus)()
             try:
                 clientaccount = (
-                clientdomain + "\\" + clientusername) if clientdomain != "{unknown}" else clientusername
+                    clientdomain + "\\" + clientusername) if clientdomain != "{unknown}" else clientusername
             except TypeError:
                 clientaccount = None
             dprint("[<] Received %s from %s" % (clientstatus, clienthostname))
