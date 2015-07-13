@@ -1,0 +1,43 @@
+<html>
+<head>
+    <!--<link href="{{url_for('static', filename='css/style.css')}}" rel="stylesheet">-->
+    <link href="/css/style.css" rel="stylesheet">
+    <link href="/css/room/{{data|length|string}}/{{data[0]|length|string}}" rel="stylesheet">
+    <title>STHS Computer Status</title>
+</head>
+<body>
+<div>
+    <header>
+        <div>
+            <ul>
+                <li><a href="#"><span>STHS Computer Status</span></a></li>
+                <li class='active'><a href='#'><span>Rooms</span></a></li>
+                <li><a href='#'><span>Users</span></a></li>
+            </ul>
+        </div>
+    </header>
+    <div>
+        <table>
+            {% for row in data %}
+            <tr>{% for column in row %}
+                <td>{{column}}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    <footer>
+        <div>
+            <ul>
+                <li><a href="#">(List Item)</a></li>
+                <li><a href="#">(List Item)</a></li>
+                <li><a href="#">(List Item)</a></li>
+                <li><a href="#">(List Item)</a></li>
+                <li><a href="#">(List Item)</a></li>
+            </ul>
+            <span>&copy; 2015 Andrew Wong</span>
+        </div>
+    </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,311 @@
+/*--------
+  Global
+--------*/
+@font-face {
+    font-family: 'lato';
+    src: url('../fonts/Lato/Lato-Regular.eot');
+    src: url('../fonts/Lato/Lato-Regular.eot?#iefix') format('embedded-opentype'),
+    url('../fonts/Lato/Lato-Regular.woff') format('woff'),
+    url('../fonts/Lato/Lato-Regular.ttf') format('truetype'),
+    url('../fonts/Lato/Lato-Regular.svg#lato') format('svg');
+    font-weight: normal;
+    font-style: normal;
+
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    padding: 0;
+}
+
+body {
+    background-color: #EEEEEE;
+    margin: 0 auto;
+}
+
+body div:first-child {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+/*--------
+  Header 
+--------*/
+header {
+    background-color: #1789CB;
+    height: 60px;
+}
+
+/* START Navigation Menu */
+header div:first-child {
+    max-width: 960px;
+    min-width: 400px;;
+    color: #eeeeee;
+    margin: 4px auto;
+}
+
+header div:first-child ul {
+    display: block;
+    line-height: 1;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    zoom: 1;
+}
+
+header div:first-child ul:after {
+    clear: both;
+    content: " ";
+    display: block;
+    font-size: 0;
+    height: 0;
+    visibility: hidden;
+}
+
+header div:first-child ul li {
+    display: inline-block;
+    margin: 0;
+    padding: 0;
+}
+
+header div:first-child.align-right ul li {
+    float: right;
+}
+
+header div:first-child.align-center ul {
+    text-align: center;
+}
+
+header div:first-child ul li a {
+    color: #FFFFFF;
+    display: block;
+    font-family: 'Lato', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    padding: 15px 25px;
+    position: relative;
+    text-decoration: none;
+    -webkit-transition: color .5s;
+    -moz-transition: color .5s;
+    -ms-transition: color .5s;
+    -o-transition: color .5s;
+    transition: color .5s;
+}
+
+header div:first-child ul li:first-child a {
+    text-transform: uppercase;
+}
+
+header div:first-child ul li a:hover {
+    color: #333333;
+}
+
+header div:first-child ul li a:hover:before {
+    width: 100%;
+}
+
+header div:first-child ul li a:after {
+    background: #EEEEEE;
+    content: "";
+    display: block;
+    height: 6px;
+    opacity: .5;
+    position: absolute;
+    right: -3px;
+    top: 22px;
+    width: 6px;
+}
+
+header div:first-child ul li:first-child a:after {
+    background: #eeeeee;
+    content: "";
+    display: block;
+    height: 52px;
+    opacity: .5;
+    position: absolute;
+    right: -3px;
+    top: 0;
+    width: 3px;
+}
+
+header div:first-child ul li:last-child > a:after, header div:first-child ul li:last-child > a:after {
+    display: none;
+}
+
+header div:first-child ul li.active a {
+    color: #333333;
+}
+
+header div:first-child ul li.active a:before {
+    width: 100%;
+}
+
+header div:first-child.align-right li:last-child > a:after, header div:first-child.align-right li:last-child > a:after {
+    display: block;
+}
+
+header div:first-child.align-right li:first-child a:after {
+    display: none;
+}
+
+@media screen and (max-width: 768px) {
+    header {
+        height: 160px;
+    }
+
+    header div:first-child ul li {
+        display: block;
+        float: none;
+        text-align: left;
+    }
+
+    header div:first-child ul li a {
+        background-color: #1789CB;
+        -moz-box-sizing: border-box;
+        -webkit-box-sizing: border-box;
+        box-sizing: border-box;
+        opacity: .8;
+        width: 100%;
+    }
+
+    header div:first-child ul li:first-child a {
+        opacity: 1
+    }
+
+    header div:first-child ul li a:after {
+        display: none;
+    }
+
+    header div:first-child ul li a:before {
+        display: none;
+    }
+}
+
+/* END Navigation Menu */
+
+/*---------
+  Content
+---------*/
+body div:first-child > div {
+    background-color: #EEEEEE;
+    flex: 1;
+    margin: 0 auto;
+    max-width: 960px;
+    width: 100%;
+}
+
+/* START Table */
+body div:first-child > div table {
+    background-color: #eeeeee;
+    margin: 10px auto;
+    text-align: center;
+}
+
+@media screen and (orientation: portrait) {
+    body div:first-child > div table {
+        height: 80vw;
+        width: 80vw;
+    }
+}
+
+@media screen and (orientation: landscape) {
+    body div:first-child > div table {
+        height: 80vh;
+        width: 80vh;
+    }
+}
+
+body div:first-child > div table tr {
+
+height: {
+
+{
+(
+1.0
+/
+data
+|
+length
+*
+100
+)
+|
+int
+}
+}
+%
+;
+}
+body div:first-child > div table tr td {
+    border: 1px solid;
+    box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -webkit-box-sizing: border-box;
+
+width: {
+
+{
+(
+1.0
+/
+data
+[
+0
+]
+|
+length
+*
+100
+)
+|
+int
+}
+}
+%
+;
+}
+/* END Table */
+
+/*--------
+  Footer
+--------*/
+footer {
+    background-color: #2F2F2F;
+    height: 50px;
+}
+
+footer div:first-child {
+    margin: 0 auto;
+    max-width: 960px;
+    text-align: center;
+}
+
+footer div:first-child ul {
+    margin: 5px auto;
+}
+
+footer div:first-child ul li {
+    display: inline;
+    list-style-type: none;
+    padding-right: 20px;
+}
+
+footer div:first-child ul li a {
+    color: #1789CB;
+    font-family: 'Lato', sans-serif;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+footer div:first-child ul li a:visited {
+    color: #1789CB;
+}
+
+footer div:first-child > span {
+    color: #EEEEEE;
+    padding-bottom: 2px;
+}

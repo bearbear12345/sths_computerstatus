@@ -1,0 +1,75 @@
+/*--------- 
+  Content
+---------*/
+body div:first-child > div {
+    background-color: #EEEEEE;
+    flex: 1;
+    margin: 0 auto;
+    max-width: 960px;
+    width: 100%;
+}
+
+/* START Table */
+body div:first-child > div table {
+    background-color: #eeeeee;
+    margin: 10px auto;
+    text-align: center;
+}
+
+@media screen and (orientation: portrait) {
+    body div:first-child > div table {
+        height: 80vw;
+        width: 80vw;
+    }
+}
+
+@media screen and (orientation: landscape) {
+    body div:first-child > div table {
+        height: 80vh;
+        width: 80vh;
+    }
+}
+
+body div:first-child > div table tr {
+
+height: {
+
+{
+(
+1.0
+/
+columns
+*
+100
+)
+|
+int
+}
+}
+%
+;
+}
+body div:first-child > div table tr td {
+    border: 1px solid;
+    box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -webkit-box-sizing: border-box;
+
+width: {
+
+{
+(
+1.0
+/
+rows
+*
+100
+)
+|
+int
+}
+}
+%
+;
+}
+/* END Table */
